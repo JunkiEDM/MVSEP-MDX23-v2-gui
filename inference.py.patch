@@ -1,0 +1,11 @@
+diff --git a/inference.py b/inference.py
+index cb3fa60..af09a45 100644
+--- a/inference.py
++++ b/inference.py
+@@ -640,3 +640,5 @@ class EnsembleDemucsMDXMusicSeparationModel:
+ 
+-def predict_with_model(options):
++def predict_with_model(opts):
++    global options
++    options = opts
+ 
