@@ -1,0 +1,52 @@
+name: Apply Patches
+
+on:
+  push:
+    branches-ignore:
+      - "patches/**"
+      - "master"
+      - "main"
+
+jobs:
+  apply-patches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Checkout patches branch
+        uses: actions/checkout@v4
+        with:
+          ref: patches/${{ github.ref_name }}
+          path: patches
+        continue-on-error: true
+
+      - name: Apply patches
+        shell: bash
+        run: |
+          shopt -s extglob
+          patches_branch="patches" 
+          if [ -d "$patches_branch" ]; then
+            echo "Applying patches from $patches_branch"
+            for f in $(find $patches_branch/*); do
+              if [[ $f == *.patch ]]; then
+                base=$(basename $f .patch)
+                echo "Applying $f patch"
+                patch $base < $f
+              else
+                echo "Copying $f"
+                cp $f .
+              fi
+            done
+            rm -rf $patches_branch
+          else
+            echo "No patches branch found"
+          fi
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Apply patches and copy files
