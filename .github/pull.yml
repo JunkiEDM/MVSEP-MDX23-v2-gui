@@ -1,5 +1,5 @@
 version: "1"
 rules:
   - base: "v2.3"
-    upstream: jarredou:MVSEP-MDX23-Colab_v2
+    upstream: jarredou:v2.3
     mergeMethod: hardreset
