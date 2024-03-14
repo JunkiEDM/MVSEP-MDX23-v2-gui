@@ -240,53 +240,6 @@ class Ui_Dialog(object):
         root['weight_VitLarge'] = self.weight_VitLarge.value()
         root['BigShifts'] = self.BigShifts.value()
 
-        # chunk_size_text = self.chunk_size.text()
-        # state = self.chunk_size_valid.validate(chunk_size_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['chunk_size'] = chunk_size_text
-
-        # overlap_demucs_text = self.overlap_demucs.text()
-        # # locale problems... it wants comma instead of dot
-        # if 0:
-        #     state = self.overlap_demucs_valid.validate(overlap_demucs_text, 0)
-        #     if state[0] == QValidator.State.Acceptable:
-        #         root['overlap_demucs'] = float(overlap_demucs_text)
-        # else:
-        #     root['overlap_demucs'] = float(overlap_demucs_text)
-
-        # overlap_VOCFT_text = self.overlap_VOCFT.text()
-        # if 0:
-        #     state = self.overlap_VOCFT_valid.validate(overlap_VOCFT_text, 0)
-        #     if state[0] == QValidator.State.Acceptable:
-        #         root['overlap_VOCFT'] = float(overlap_VOCFT_text)
-        # else:
-        #     root['overlap_VOCFT'] = float(overlap_VOCFT_text)
-
-        # overlap_VitLarge_text = self.overlap_VitLarge.text()
-        # state = self.overlap_VitLarge_valid.validate(overlap_VitLarge_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['overlap_VitLarge'] = overlap_VitLarge_text
-
-        # BigShifts_text = self.BigShifts.text()
-        # state = self.BigShifts_valid.validate(BigShifts_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['BigShifts'] = BigShifts_text
-
-        # weight_InstVoc_text = self.weight_InstVoc.text()
-        # state = self.weight_InstVoc_valid.validate(weight_InstVoc_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['weight_InstVoc'] = weight_InstVoc_text
-
-        # weight_VOCFT_text = self.weight_VOCFT.text()
-        # state = self.weight_VOCFT_valid.validate(weight_VOCFT_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['weight_VOCFT'] = weight_VOCFT_text
-
-        # weight_VitLarge_text = self.weight_VitLarge.text()
-        # state = self.weight_VitLarge_valid.validate(weight_VitLarge_text, 0)
-        # if state[0] == QValidator.State.Acceptable:
-        #     root['weight_VitLarge'] = weight_VitLarge_text
-
         self.Dialog.close()
 
     def return_cancel(self):
