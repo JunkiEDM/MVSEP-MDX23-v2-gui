@@ -1,5 +1,14 @@
 version: "1"
 rules:
+  - base: "v2.2"
+    upstream: jarredou:v2.2
+    mergeMethod: hardreset
   - base: "v2.3"
     upstream: jarredou:v2.3
+    mergeMethod: hardreset
+  - base: "v2.4"
+    upstream: jarredou:v2.4
+    mergeMethod: hardreset
+  - base: "v2.5"
+    upstream: jarredou:v2.5
     mergeMethod: hardreset
