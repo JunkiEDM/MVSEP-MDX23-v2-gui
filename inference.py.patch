@@ -1,0 +1,9 @@
+--- ./inference.py.orig	2024-05-02 09:18:37.403788800 -0300
++++ ./inference.py	2024-05-02 09:18:56.741828400 -0300
+@@ -833,3 +833,5 @@
+ 
+-def predict_with_model(options):
++def predict_with_model(opts):
++    global options
++    options = opts
+ 
