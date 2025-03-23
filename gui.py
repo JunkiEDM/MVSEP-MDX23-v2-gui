@@ -1,0 +1,648 @@
+# coding: utf-8
+__author__ = 'Roman Solovyev (ZFTurbo), IPPM RAS, JunkiEDM'
+
+if __name__ == '__main__':
+    import os
+
+    gpu_use = "0"
+    print('GPU use: {}'.format(gpu_use))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(gpu_use)
+
+import time
+import os
+import numpy as np
+from PyQt6.QtCore import *
+from PyQt6 import QtCore
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+import sys
+from inference import predict_with_model
+import torch
+
+
+root = dict()
+
+
+class Worker(QObject):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
+
+    def __init__(self, options):
+        super().__init__()
+        self.options = options
+
+    def run(self):
+        global root
+        # Here we pass the update_progress (uncalled!)
+        self.options['update_percent_func'] = self.update_progress
+        for f in self.options['input_audio']:
+            predict_with_model({**self.options, 'input_audio': [f]})
+        root['button_start'].setDisabled(False)
+        root['button_finish'].setDisabled(True)
+        root['start_proc'] = False
+        self.finished.emit()
+
+    def update_progress(self, percent):
+        self.progress.emit(percent)
+
+
+class Ui_Dialog(object):
+    def setupUi(self, Dialog):
+        global root
+
+        Dialog.setObjectName('Settings')
+        Dialog.resize(370, 910)
+
+        self.output_format_label = QLabel(Dialog)
+        self.output_format_label.setText('Output format')
+        self.output_format_label.resize(300, 40)
+        self.output_format_label.move(30, 10)
+        self.output_format = QComboBox(Dialog)
+        self.output_format.addItems(['PCM_16', 'FLOAT', 'FLAC'])
+        self.output_format.setFixedWidth(100)
+        self.output_format.move(240, 20)
+        self.output_format.setCurrentIndex(['PCM_16', 'FLOAT', 'FLAC'].index(root['output_format']))
+
+        self.checkbox_vocals_only = QCheckBox('Generate only vocals/instrumental', Dialog)
+        self.checkbox_vocals_only.setText('Generate only vocals/instrumental')
+        self.checkbox_vocals_only.resize(320, 40)
+        self.checkbox_vocals_only.move(30, 40)
+        if root['vocals_only']:
+            self.checkbox_vocals_only.setChecked(True)
+
+        self.input_gain_label = QLabel(Dialog)
+        self.input_gain_label.setText('Input gain')
+        self.input_gain_label.resize(300, 40)
+        self.input_gain_label.move(30, 70)
+        self.input_gain = QSpinBox(Dialog)
+        self.input_gain.setMinimum(-6)
+        self.input_gain.setMaximum(0)
+        self.input_gain.setSingleStep(3)
+        self.input_gain.setFixedWidth(100)
+        self.input_gain.move(240, 80)
+        self.input_gain.setValue(root['input_gain'])
+
+        self.checkbox_restore_gain = QCheckBox('Restore gain after separation', Dialog)
+        self.checkbox_restore_gain.setText('Restore gain after separation')
+        self.checkbox_restore_gain.resize(320, 40)
+        self.checkbox_restore_gain.move(30, 100)
+        if root['restore_gain']:
+            self.checkbox_restore_gain.setChecked(True)
+
+        self.checkbox_filter_vocals = QCheckBox('Filter vocals below 50Hz', Dialog)
+        self.checkbox_filter_vocals.setText('Filter vocals below 50Hz')
+        self.checkbox_filter_vocals.resize(320, 40)
+        self.checkbox_filter_vocals.move(30, 130)
+        if root['filter_vocals']:
+            self.checkbox_filter_vocals.setChecked(True)
+
+        self.checkbox_cpu = QCheckBox('Use CPU instead of GPU', Dialog)
+        self.checkbox_cpu.setText('Use CPU instead of GPU')
+        self.checkbox_cpu.resize(320, 40)
+        self.checkbox_cpu.move(30, 160)
+        if root['cpu']:
+            self.checkbox_cpu.setChecked(True)
+
+        self.checkbox_single_onnx = QCheckBox('Only use single ONNX model for vocals (low VRAM)', Dialog)
+        self.checkbox_single_onnx.setText('Only use single ONNX model for vocals (low VRAM)')
+        self.checkbox_single_onnx.resize(320, 40)
+        self.checkbox_single_onnx.move(30, 190)
+        if root['single_onnx']:
+            self.checkbox_single_onnx.setChecked(True)
+
+        self.checkbox_large_gpu = QCheckBox('Store models on GPU (Requires 11GB+ VRAM)', Dialog)
+        self.checkbox_large_gpu.setText('Store models on GPU (Requires 11GB+ VRAM)')
+        self.checkbox_large_gpu.resize(320, 40)
+        self.checkbox_large_gpu.move(30, 220)
+        if root['large_gpu']:
+            self.checkbox_large_gpu.setChecked(True)
+
+        self.BigShifts_label = QLabel(Dialog)
+        self.BigShifts_label.setText('MDX BigShifts')
+        self.BigShifts_label.resize(300, 40)
+        self.BigShifts_label.move(30, 250)
+        self.BigShifts = QSpinBox(Dialog)
+        self.BigShifts.setMinimum(1)
+        self.BigShifts.setMaximum(41)
+        self.BigShifts.setFixedWidth(100)
+        self.BigShifts.move(240, 260)
+        self.BigShifts.setValue(root['BigShifts'])
+
+        self.checkbox_use_BSRoformer = QCheckBox('Use BSRoformer? (Recommended)', Dialog)
+        self.checkbox_use_BSRoformer.setText('Use BSRoformer? (Recommended)')
+        self.checkbox_use_BSRoformer.resize(320, 40)
+        self.checkbox_use_BSRoformer.move(30, 280)
+        if root['use_BSRoformer']:
+            self.checkbox_use_BSRoformer.setChecked(True)
+
+        self.BSRoformer_model_label = QLabel(Dialog)
+        self.BSRoformer_model_label.setText('BSRoformer Model to use')
+        self.BSRoformer_model_label.resize(300, 40)
+        self.BSRoformer_model_label.move(30, 310)
+        self.BSRoformer_model = QComboBox(Dialog)
+        self.BSRoformer_model.addItems(['ep_317_1297', 'ep_368_1296'])
+        self.BSRoformer_model.setFixedWidth(100)
+        self.BSRoformer_model.move(240, 320)
+        self.BSRoformer_model.setCurrentIndex(['ep_317_1297', 'ep_368_1296'].index(root['BSRoformer_model']))
+
+        self.weight_BSRoformer_label = QLabel(Dialog)
+        self.weight_BSRoformer_label.setText('BSRoformer weight')
+        self.weight_BSRoformer_label.resize(300, 40)
+        self.weight_BSRoformer_label.move(30, 340)
+        self.weight_BSRoformer = QDoubleSpinBox(Dialog)
+        self.weight_BSRoformer.setMinimum(0)
+        self.weight_BSRoformer.setMaximum(10)
+        self.weight_BSRoformer.setSingleStep(0.01)
+        self.weight_BSRoformer.setFixedWidth(100)
+        self.weight_BSRoformer.move(240, 350)
+        self.weight_BSRoformer.setValue(root['weight_BSRoformer'])
+
+        self.overlap_BSRoformer_label = QLabel(Dialog)
+        self.overlap_BSRoformer_label.setText('BSRoformer overlap')
+        self.overlap_BSRoformer_label.resize(300, 40)
+        self.overlap_BSRoformer_label.move(30, 370)
+        self.overlap_BSRoformer = QSpinBox(Dialog)
+        self.overlap_BSRoformer.setMinimum(1)
+        self.overlap_BSRoformer.setMaximum(40)
+        self.overlap_BSRoformer.setFixedWidth(100)
+        self.overlap_BSRoformer.move(240, 380)
+        self.overlap_BSRoformer.setValue(root['overlap_BSRoformer'])
+
+        self.checkbox_use_Kim_MelRoformer = QCheckBox('Use Kim_MelRoformer? (Recommended)', Dialog)
+        self.checkbox_use_Kim_MelRoformer.setText('Use Kim_MelRoformer? (Recommended)')
+        self.checkbox_use_Kim_MelRoformer.resize(320, 40)
+        self.checkbox_use_Kim_MelRoformer.move(30, 400)
+        if root['use_Kim_MelRoformer']:
+            self.checkbox_use_Kim_MelRoformer.setChecked(True)
+
+        self.weight_Kim_MelRoformer_label = QLabel(Dialog)
+        self.weight_Kim_MelRoformer_label.setText('Kim_MelRoformer weight')
+        self.weight_Kim_MelRoformer_label.resize(300, 40)
+        self.weight_Kim_MelRoformer_label.move(30, 430)
+        self.weight_Kim_MelRoformer = QDoubleSpinBox(Dialog)
+        self.weight_Kim_MelRoformer.setMinimum(0)
+        self.weight_Kim_MelRoformer.setMaximum(10)
+        self.weight_Kim_MelRoformer.setSingleStep(0.01)
+        self.weight_Kim_MelRoformer.setFixedWidth(100)
+        self.weight_Kim_MelRoformer.move(240, 440)
+        self.weight_Kim_MelRoformer.setValue(root['weight_Kim_MelRoformer'])
+
+        self.checkbox_use_InstVoc = QCheckBox('Use InstVoc? (Recommended)', Dialog)
+        self.checkbox_use_InstVoc.setText('Use InstVoc? (Recommended)')
+        self.checkbox_use_InstVoc.resize(320, 40)
+        self.checkbox_use_InstVoc.move(30, 460)
+        if root['use_InstVoc']:
+            self.checkbox_use_InstVoc.setChecked(True)
+
+        self.weight_InstVoc_label = QLabel(Dialog)
+        self.weight_InstVoc_label.setText('MDXv3 weight')
+        self.weight_InstVoc_label.resize(300, 40)
+        self.weight_InstVoc_label.move(30, 490)
+        self.weight_InstVoc = QDoubleSpinBox(Dialog)
+        self.weight_InstVoc.setMinimum(0)
+        self.weight_InstVoc.setMaximum(10)
+        self.weight_InstVoc.setSingleStep(0.01)
+        self.weight_InstVoc.setFixedWidth(100)
+        self.weight_InstVoc.move(240, 500)
+        self.weight_InstVoc.setValue(root['weight_InstVoc'])
+
+        self.overlap_InstVoc_label = QLabel(Dialog)
+        self.overlap_InstVoc_label.setText('MDXv3 overlap')
+        self.overlap_InstVoc_label.resize(300, 40)
+        self.overlap_InstVoc_label.move(30, 520)
+        self.overlap_InstVoc = QSpinBox(Dialog)
+        self.overlap_InstVoc.setMinimum(1)
+        self.overlap_InstVoc.setMaximum(40)
+        self.overlap_InstVoc.setFixedWidth(100)
+        self.overlap_InstVoc.move(240, 530)
+        self.overlap_InstVoc.setValue(root['overlap_InstVoc'])
+
+        self.checkbox_use_VitLarge = QCheckBox('Use VitLarge in Vocal Ensemble?', Dialog)
+        self.checkbox_use_VitLarge.setText('Use VitLarge in Vocal Ensemble?')
+        self.checkbox_use_VitLarge.resize(320, 40)
+        self.checkbox_use_VitLarge.move(30, 550)
+        if root['use_VitLarge']:
+            self.checkbox_use_VitLarge.setChecked(True)
+
+        self.weight_VitLarge_label = QLabel(Dialog)
+        self.weight_VitLarge_label.setText('VitLarge weight')
+        self.weight_VitLarge_label.resize(300, 40)
+        self.weight_VitLarge_label.move(30, 580)
+        self.weight_VitLarge = QDoubleSpinBox(Dialog)
+        self.weight_VitLarge.setMinimum(0)
+        self.weight_VitLarge.setMaximum(10)
+        self.weight_VitLarge.setSingleStep(0.01)
+        self.weight_VitLarge.setFixedWidth(100)
+        self.weight_VitLarge.move(240, 590)
+        self.weight_VitLarge.setValue(root['weight_VitLarge'])
+
+        self.overlap_VitLarge_label = QLabel(Dialog)
+        self.overlap_VitLarge_label.setText('VitLarge overlap')
+        self.overlap_VitLarge_label.resize(300, 40)
+        self.overlap_VitLarge_label.move(30, 610)
+        self.overlap_VitLarge = QSpinBox(Dialog)
+        self.overlap_VitLarge.setMinimum(1)
+        self.overlap_VitLarge.setMaximum(40)
+        self.overlap_VitLarge.setFixedWidth(100)
+        self.overlap_VitLarge.move(240, 620)
+        self.overlap_VitLarge.setValue(root['overlap_VitLarge'])
+
+        self.checkbox_use_InstHQ4 = QCheckBox('Use InstHQ4?', Dialog)
+        self.checkbox_use_InstHQ4.setText('Use InstHQ4?')
+        self.checkbox_use_InstHQ4.resize(320, 40)
+        self.checkbox_use_InstHQ4.move(30, 640)
+        if root['use_InstHQ4']:
+            self.checkbox_use_InstHQ4.setChecked(True)
+
+        self.weight_InstHQ4_label = QLabel(Dialog)
+        self.weight_InstHQ4_label.setText('InstHQ4 weight')
+        self.weight_InstHQ4_label.resize(300, 40)
+        self.weight_InstHQ4_label.move(30, 670)
+        self.weight_InstHQ4 = QDoubleSpinBox(Dialog)
+        self.weight_InstHQ4.setMinimum(0)
+        self.weight_InstHQ4.setMaximum(10)
+        self.weight_InstHQ4.setSingleStep(0.1)
+        self.weight_InstHQ4.setFixedWidth(100)
+        self.weight_InstHQ4.move(240, 680)
+        self.weight_InstHQ4.setValue(root['weight_InstHQ4'])
+
+        self.overlap_InstHQ4_label = QLabel(Dialog)
+        self.overlap_InstHQ4_label.setText('InstHQ4 overlap')
+        self.overlap_InstHQ4_label.resize(300, 40)
+        self.overlap_InstHQ4_label.move(30, 700)
+        self.overlap_InstHQ4 = QDoubleSpinBox(Dialog)
+        self.overlap_InstHQ4.setMinimum(0)
+        self.overlap_InstHQ4.setMaximum(0.95)
+        self.overlap_InstHQ4.setSingleStep(0.05)
+        self.overlap_InstHQ4.setFixedWidth(100)
+        self.overlap_InstHQ4.move(240, 710)
+        self.overlap_InstHQ4.setValue(root['overlap_InstHQ4'])
+
+        self.checkbox_use_VOCFT = QCheckBox('Use VOC-FT in Vocal Ensemble?', Dialog)
+        self.checkbox_use_VOCFT.setText('Use VOC-FT in Vocal Ensemble?')
+        self.checkbox_use_VOCFT.resize(320, 40)
+        self.checkbox_use_VOCFT.move(30, 730)
+        if root['use_VOCFT']:
+            self.checkbox_use_VOCFT.setChecked(True)
+
+        self.weight_VOCFT_label = QLabel(Dialog)
+        self.weight_VOCFT_label.setText('VOC-FT weight')
+        self.weight_VOCFT_label.resize(300, 40)
+        self.weight_VOCFT_label.move(30, 760)
+        self.weight_VOCFT = QDoubleSpinBox(Dialog)
+        self.weight_VOCFT.setMinimum(0)
+        self.weight_VOCFT.setMaximum(10)
+        self.weight_VOCFT.setSingleStep(0.01)
+        self.weight_VOCFT.setFixedWidth(100)
+        self.weight_VOCFT.move(240, 770)
+        self.weight_VOCFT.setValue(root['weight_VOCFT'])
+
+        self.overlap_VOCFT_label = QLabel(Dialog)
+        self.overlap_VOCFT_label.setText('VOC-FT overlap')
+        self.overlap_VOCFT_label.resize(300, 40)
+        self.overlap_VOCFT_label.move(30, 790)
+        self.overlap_VOCFT = QDoubleSpinBox(Dialog)
+        self.overlap_VOCFT.setMinimum(0)
+        self.overlap_VOCFT.setMaximum(0.95)
+        self.overlap_VOCFT.setSingleStep(0.05)
+        self.overlap_VOCFT.setFixedWidth(100)
+        self.overlap_VOCFT.move(240, 800)
+        self.overlap_VOCFT.setValue(root['overlap_VOCFT'])
+
+        self.overlap_demucs_label = QLabel(Dialog)
+        self.overlap_demucs_label.setText('Demucs overlap (4-stem)')
+        self.overlap_demucs_label.resize(300, 40)
+        self.overlap_demucs_label.move(30, 820)
+        self.overlap_demucs = QDoubleSpinBox(Dialog)
+        self.overlap_demucs.setFixedWidth(100)
+        self.overlap_demucs.move(240, 830)
+        self.overlap_demucs.setValue(root['overlap_demucs'])
+
+        self.pushButton_save = QPushButton(Dialog)
+        self.pushButton_save.setObjectName('save')
+        self.pushButton_save.resize(145, 35)
+        self.pushButton_save.move(30, 860)
+        self.pushButton_save.clicked.connect(self.return_save)
+
+        self.pushButton_cancel = QPushButton(Dialog)
+        self.pushButton_cancel.setObjectName('cancel')
+        self.pushButton_cancel.resize(145, 35)
+        self.pushButton_cancel.move(195, 860)
+        self.pushButton_cancel.clicked.connect(self.return_cancel)
+
+        self.retranslateUi(Dialog)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+        self.Dialog = Dialog
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Settings", "Settings"))
+        self.pushButton_cancel.setText(_translate("Settings", "Cancel"))
+        self.pushButton_save.setText(_translate("Settings", "Save settings"))
+
+    def return_save(self):
+        global root
+        # print("save")
+        root['vocals_only'] = self.checkbox_vocals_only.isChecked()
+        root['restore_gain'] = self.checkbox_restore_gain.isChecked()
+        root['filter_vocals'] = self.checkbox_filter_vocals.isChecked()
+        root['cpu'] = self.checkbox_cpu.isChecked()
+        root['single_onnx'] = self.checkbox_single_onnx.isChecked()
+        root['large_gpu'] = self.checkbox_large_gpu.isChecked()
+        root['use_BSRoformer'] = self.checkbox_use_BSRoformer.isChecked()
+        root['use_Kim_MelRoformer'] = self.checkbox_use_Kim_MelRoformer.isChecked()
+        root['use_InstVoc'] = self.checkbox_use_InstVoc.isChecked()
+        root['use_VitLarge'] = self.checkbox_use_VitLarge.isChecked()
+        root['use_InstHQ4'] = self.checkbox_use_InstHQ4.isChecked()
+        root['use_VOCFT'] = self.checkbox_use_VOCFT.isChecked()
+        root['output_format'] = self.output_format.currentText()
+        root['input_gain'] = self.input_gain.value()
+        root['BSRoformer_model'] = self.BSRoformer_model.currentText()
+        root['overlap_demucs'] = self.overlap_demucs.value()
+        root['overlap_BSRoformer'] = self.overlap_BSRoformer.value()
+        root['overlap_InstVoc'] = self.overlap_InstVoc.value()
+        root['overlap_VitLarge'] = self.overlap_VitLarge.value()
+        root['overlap_InstHQ4'] = self.overlap_InstHQ4.value()
+        root['overlap_VOCFT'] = self.overlap_VOCFT.value()
+        root['weight_BSRoformer'] = self.weight_BSRoformer.value()
+        root['weight_Kim_MelRoformer'] = self.weight_Kim_MelRoformer.value()
+        root['weight_InstVoc'] = self.weight_InstVoc.value()
+        root['weight_VitLarge'] = self.weight_VitLarge.value()
+        root['weight_InstHQ4'] = self.weight_InstHQ4.value()
+        root['weight_VOCFT'] = self.weight_VOCFT.value()
+        root['BigShifts'] = self.BigShifts.value()
+
+        self.Dialog.close()
+
+    def return_cancel(self):
+        global root
+        # print("cancel")
+        self.Dialog.close()
+
+
+class MyWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.resize(560, 360)
+        self.move(300, 300)
+        self.setWindowTitle('MVSEP music separation model')
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        global root
+        files = [u.toLocalFile() for u in event.mimeData().urls()]
+        txt = ''
+        root['input_files'] = []
+        for f in files:
+            root['input_files'].append(f)
+            txt += f + '\n'
+        root['input_files_list_text_area'].insertPlainText(txt)
+        root['progress_bar'].setValue(0)
+
+    def execute_long_task(self):
+        global root
+
+        if len(root['input_files']) == 0 and 1:
+            QMessageBox.about(root['w'], "Error", "No input files specified!")
+            return
+
+        root['progress_bar'].show()
+        root['button_start'].setDisabled(True)
+        root['button_finish'].setDisabled(False)
+        root['start_proc'] = True
+
+        options = {
+            'input_audio': root['input_files'],
+            'output_folder': root['output_folder'],
+            'output_format': root['output_format'],
+            'vocals_only': root['vocals_only'],
+            'input_gain': root['input_gain'],
+            'restore_gain': root['restore_gain'],
+            'filter_vocals': root['filter_vocals'],
+            'cpu': root['cpu'],
+            'single_onnx': root['single_onnx'],
+            'large_gpu': root['large_gpu'],
+            'BSRoformer_model': root['BSRoformer_model'],
+            'use_BSRoformer': root['use_BSRoformer'],
+            'use_Kim_MelRoformer': root['use_Kim_MelRoformer'],
+            'use_InstVoc': root['use_InstVoc'],
+            'use_VitLarge': root['use_VitLarge'],
+            'use_InstHQ4': root['use_InstHQ4'],
+            'use_VOCFT': root['use_VOCFT'],
+            'overlap_demucs': root['overlap_demucs'],
+            'overlap_BSRoformer': root['overlap_BSRoformer'],
+            'overlap_InstVoc': root['overlap_InstVoc'],
+            'overlap_VitLarge': root['overlap_VitLarge'],
+            'overlap_InstHQ4': root['overlap_InstHQ4'],
+            'overlap_VOCFT': root['overlap_VOCFT'],
+            'weight_BSRoformer': root['weight_BSRoformer'],
+            'weight_Kim_MelRoformer': root['weight_Kim_MelRoformer'],
+            'weight_InstVoc': root['weight_InstVoc'],
+            'weight_VitLarge': root['weight_VitLarge'],
+            'weight_InstHQ4': root['weight_InstHQ4'],
+            'weight_VOCFT': root['weight_VOCFT'],
+            'BigShifts': root['BigShifts'],
+        }
+
+        self.update_progress(0)
+        self.thread = QThread()
+        self.worker = Worker(options)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.progress.connect(self.update_progress)
+
+        self.thread.start()
+
+    def stop_separation(self):
+        global root
+        self.thread.terminate()
+        root['button_start'].setDisabled(False)
+        root['button_finish'].setDisabled(True)
+        root['start_proc'] = False
+        root['progress_bar'].hide()
+
+    def update_progress(self, progress):
+        global root
+        root['progress_bar'].setValue(progress)
+
+    def open_settings(self):
+        global root
+        dialog = QDialog()
+        dialog.ui = Ui_Dialog()
+        dialog.ui.setupUi(dialog)
+        dialog.exec()
+
+
+def dialog_select_input_files():
+    global root
+    files, _ = QFileDialog.getOpenFileNames(
+        None,
+        "QFileDialog.getOpenFileNames()",
+        "",
+        "All Files (*);;Audio Files (*.wav, *.mp3, *.flac)",
+    )
+    if files:
+        txt = ''
+        root['input_files'] = []
+        for f in files:
+            root['input_files'].append(f)
+            txt += f + '\n'
+        root['input_files_list_text_area'].insertPlainText(txt)
+        root['progress_bar'].setValue(0)
+    return files
+
+
+def dialog_select_output_folder():
+    global root
+    foldername = QFileDialog.getExistingDirectory(
+        None,
+        "Select Directory"
+    )
+    root['output_folder'] = foldername + '/'
+    root['output_folder_line_edit'].setText(root['output_folder'])
+    return foldername
+
+
+def create_dialog():
+    global root
+    app = QApplication(sys.argv)
+
+    w = MyWidget()
+
+    root['input_files'] = []
+    root['output_folder'] = os.path.dirname(os.path.abspath(__file__)) + '/results/'
+    root['output_format'] = 'FLAC'
+    root['vocals_only'] = False
+    root['input_gain'] = 0
+    root['restore_gain'] = False
+    root['filter_vocals'] = False
+    root['cpu'] = False
+    root['single_onnx'] = False
+    root['large_gpu'] = False
+    root['BSRoformer_model'] = 'ep_317_1297'
+    root['use_BSRoformer'] = True
+    root['use_Kim_MelRoformer'] = True
+    root['use_InstVoc'] = True
+    root['use_VitLarge'] = False
+    root['use_InstHQ4'] = False
+    root['use_VOCFT'] = False
+    root['overlap_demucs'] = 0.6
+    root['overlap_BSRoformer'] = 2
+    root['overlap_InstVoc'] = 2
+    root['overlap_VitLarge'] = 1
+    root['overlap_InstHQ4'] = 0.1
+    root['overlap_VOCFT'] = 0.1
+    root['weight_BSRoformer'] = 9.18
+    root['weight_Kim_MelRoformer'] = 10
+    root['weight_InstVoc'] = 3.39
+    root['weight_VitLarge'] = 1
+    root['weight_InstHQ4'] = 2
+    root['weight_VOCFT'] = 2
+    root['BigShifts'] = 3
+
+    t = torch.cuda.get_device_properties(0).total_memory / (1024 * 1024 * 1024)
+    if t > 11.5:
+        print('You have enough GPU memory ({:.2f} GB), so we set fast GPU mode. You can change in settings!'.format(t))
+        root['large_gpu'] = True
+        root['single_onnx'] = False
+    elif t < 8:
+        root['large_gpu'] = False
+        root['single_onnx'] = False
+        # root['single_onnx'] = True  # crashes
+
+    button_select_input_files = QPushButton(w)
+    button_select_input_files.setText("Input audio files")
+    button_select_input_files.clicked.connect(dialog_select_input_files)
+    button_select_input_files.setFixedHeight(35)
+    button_select_input_files.setFixedWidth(150)
+    button_select_input_files.move(30, 20)
+
+    input_files_list_text_area = QTextEdit(w)
+    input_files_list_text_area.setReadOnly(True)
+    input_files_list_text_area.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+    font = input_files_list_text_area.font()
+    font.setFamily("Courier")
+    font.setPointSize(10)
+    input_files_list_text_area.move(30, 60)
+    input_files_list_text_area.resize(500, 100)
+
+    button_select_output_folder = QPushButton(w)
+    button_select_output_folder.setText("Output folder")
+    button_select_output_folder.setFixedHeight(35)
+    button_select_output_folder.setFixedWidth(150)
+    button_select_output_folder.clicked.connect(dialog_select_output_folder)
+    button_select_output_folder.move(30, 180)
+
+    output_folder_line_edit = QLineEdit(w)
+    output_folder_line_edit.setReadOnly(True)
+    font = output_folder_line_edit.font()
+    font.setFamily("Courier")
+    font.setPointSize(10)
+    output_folder_line_edit.move(30, 220)
+    output_folder_line_edit.setFixedWidth(500)
+    output_folder_line_edit.setText(root['output_folder'])
+
+    progress_bar = QProgressBar(w)
+    # progress_bar.move(30, 310)
+    progress_bar.setValue(0)
+    progress_bar.setGeometry(30, 310, 500, 35)
+    progress_bar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+    progress_bar.hide()
+    root['progress_bar'] = progress_bar
+
+    button_start = QPushButton('Start separation', w)
+    button_start.clicked.connect(w.execute_long_task)
+    button_start.setFixedHeight(35)
+    button_start.setFixedWidth(150)
+    button_start.move(30, 270)
+
+    button_finish = QPushButton('Stop separation', w)
+    button_finish.clicked.connect(w.stop_separation)
+    button_finish.setFixedHeight(35)
+    button_finish.setFixedWidth(150)
+    button_finish.move(200, 270)
+    button_finish.setDisabled(True)
+
+    button_settings = QPushButton('⚙', w)
+    button_settings.clicked.connect(w.open_settings)
+    button_settings.setFixedHeight(35)
+    button_settings.setFixedWidth(35)
+    button_settings.move(495, 270)
+    button_settings.setDisabled(False)
+
+    mvsep_link = QLabel(w)
+    mvsep_link.setOpenExternalLinks(True)
+    font = mvsep_link.font()
+    font.setFamily("Courier")
+    font.setPointSize(10)
+    mvsep_link.move(415, 30)
+    mvsep_link.setText('Powered by <a href="https://mvsep.com">MVSep.com</a>')
+
+    root['w'] = w
+    root['input_files_list_text_area'] = input_files_list_text_area
+    root['output_folder_line_edit'] = output_folder_line_edit
+    root['button_start'] = button_start
+    root['button_finish'] = button_finish
+    root['button_settings'] = button_settings
+
+    # w.showMaximized()
+    w.show()
+    sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    print('Version: 2.5.1')
+    create_dialog()
